@@ -214,10 +214,12 @@ export default function unmangle(source: string) {
     ecmaVersion: 12,
   })
 
+  // console.log(JSON.stringify(parsed, null, 2))
+
   walk.fullAncestor(parsed, (n, ancestors: acorn.Node[]) => {
     const node = n as CustomNode
     if (node.type !== 'Identifier') return
-    const scope = getScope(ancestors, 'BlockStatement')
+    const scope = getScope(ancestors, 'FunctionDeclaration')
     const newName = getNewName(node.name, getTreePath(scope))
     node.name = newName
   })

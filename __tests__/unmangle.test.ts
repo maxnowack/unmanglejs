@@ -1,6 +1,7 @@
 import unmangle from '../src/index'
 
-const code = `function nestedReturn(val) {
+test('unmangle source code', () => {
+  const code = `function nestedReturn(val) {
   return (function (val) {
     return (function (val) {
       return (function (val) {
@@ -22,29 +23,39 @@ const testArrow = () => {
 };
 module.exports = nestedReturn;
 `
-const unmangledCode = `function reegucu(udutcan) {
-  return (function (slitiegip) {
-    return (function (piefoji) {
-      return (function (noblasis) {
-        return (function (keyughuy) {
-          return (function (tavobo) {
-            return (function (teepheefe) {
-              return (function (swuvate) {
-                return hueswookim;
-              })(swuvate);
-            })(teepheefe);
-          })(tavobo);
-        })(keyughuy);
-      })(noblasis);
-    })(piefoji);
-  })(slitiegip);
+const unmangledCode = `function hugake(gagijue) {
+  return (function (gagijue) {
+    return (function (gagijue) {
+      return (function (gagijue) {
+        return (function (gagijue) {
+          return (function (gagijue) {
+            return (function (gagijue) {
+              return (function (gagijue) {
+                return gagijue;
+              })(gagijue);
+            })(gagijue);
+          })(gagijue);
+        })(gagijue);
+      })(gagijue);
+    })(gagijue);
+  })(gagijue);
 }
 const batoco = () => {
-  var afaskuk = true;
+  var dajuemep = true;
 };
 jutaquar.exports = reegucu;
-`
+` 
+  expect(unmangle(code)).toEqual(unmangledCode)
+})
 
-test('unmangle source code', () => {
+test('keep function scope', () => {
+  const code = `function test(a, b) {
+  return a + b;
+}
+`
+  const unmangledCode = `function ernulbep(strapunu, jurupeze) {
+  return strapunu + jurupeze;
+}
+`
   expect(unmangle(code)).toEqual(unmangledCode)
 })
