@@ -1,228 +1,63 @@
-import { parse } from 'acorn'
-import { generate } from 'astring'
-import phonetic from 'phonetic'
-import * as walk from 'acorn-walk'
-import { findLastIndex } from 'lodash'
+import { format } from 'prettier/standalone'
+import { util } from 'prettier'
+import * as babel from 'prettier/parser-babel'
+import traverse, { NodePath } from '@babel/traverse'
+import { AST } from 'prettier'
+import { forEach } from 'lodash'
+import { Node, Comment } from '@babel/types'
+import reservedWords from './reservedWords'
 
-const reservedWords = [
-  "abstract",
-  "arguments",
-  "await",
-  "boolean",
-  "break",
-  "byte",
-  "case",
-  "catch",
-  "char",
-  "class",
-  "const",
-  "continue",
-  "debugger",
-  "default",
-  "delete",
-  "do",
-  "double",
-  "else",
-  "enum",
-  "eval",
-  "export",
-  "extends",
-  "false",
-  "final",
-  "finally",
-  "float",
-  "for",
-  "function",
-  "goto",
-  "if",
-  "implements",
-  "import",
-  "in",
-  "instanceof",
-  "int",
-  "interface",
-  "let",
-  "long",
-  "native",
-  "new",
-  "null",
-  "package",
-  "private",
-  "protected",
-  "public",
-  "return",
-  "short",
-  "static",
-  "super",
-  "switch",
-  "synchronized",
-  "this",
-  "throw",
-  "throws",
-  "transient",
-  "true",
-  "try",
-  "typeof",
-  "var",
-  "void",
-  "volatile",
-  "while",
-  "with",
-  "yield",
-  "Array",
-  "Date",
-  "eval",
-  "function",
-  "hasOwnProperty",
-  "Infinity",
-  "isFinite",
-  "isNaN",
-  "isPrototypeOf",
-  "length",
-  "Math",
-  "NaN",
-  "name",
-  "Number",
-  "Object",
-  "prototype",
-  "String",
-  "toString",
-  "undefined",
-  "valueOf",
-  "alert",
-  "all",
-  "anchor",
-  "anchors",
-  "area",
-  "assign",
-  "blur",
-  "button",
-  "checkbox",
-  "clearInterval",
-  "clearTimeout",
-  "clientInformation",
-  "close",
-  "closed",
-  "confirm",
-  "constructor",
-  "crypto",
-  "decodeURI",
-  "decodeURIComponent",
-  "defaultStatus",
-  "document",
-  "element",
-  "elements",
-  "embed",
-  "embeds",
-  "encodeURI",
-  "encodeURIComponent",
-  "escape",
-  "event",
-  "fileUpload",
-  "focus",
-  "form",
-  "forms",
-  "frame",
-  "innerHeight",
-  "innerWidth",
-  "layer",
-  "layers",
-  "link",
-  "location",
-  "mimeTypes",
-  "navigate",
-  "navigator",
-  "frames",
-  "frameRate",
-  "hidden",
-  "history",
-  "image",
-  "images",
-  "offscreenBuffering",
-  "open",
-  "opener",
-  "option",
-  "outerHeight",
-  "outerWidth",
-  "packages",
-  "pageXOffset",
-  "pageYOffset",
-  "parent",
-  "parseFloat",
-  "parseInt",
-  "password",
-  "pkcs11",
-  "plugin",
-  "prompt",
-  "propertyIsEnum",
-  "radio",
-  "reset",
-  "screenX",
-  "screenY",
-  "scroll",
-  "secure",
-  "select",
-  "self",
-  "setInterval",
-  "setTimeout",
-  "status",
-  "submit",
-  "taint",
-  "text",
-  "textarea",
-  "top",
-  "unescape",
-  "untaint",
-  "window",
-  "abstract",
-  "boolean",
-  "byte",
-  "char",
-  "double",
-  "final",
-  "float",
-  "goto",
-  "int",
-  "long",
-  "native",
-  "short",
-  "synchronized",
-  "throws",
-  "transient",
-  "volatile"
-]
-
-interface CustomNode extends acorn.Node {
-  name: string,
-}
-
-function getNewName(name: string, scope: string) {
-  if (reservedWords.includes(name)) return name
-  const id = JSON.stringify({ name, scope })
-  return phonetic.generate({ seed: id, capFirst: false })
-}
-function getTreePath(tree: acorn.Node[]) {
-  return tree.map(node => node.type).join('.')
-}
-function getScope(tree: acorn.Node[], scopeType: string) {
-  const scopeIndex = findLastIndex(tree, node => node.type === scopeType)
-  return tree.slice(0, scopeIndex + 1)
+function parseAst(code: string, editAst: (ast: AST) => AST) {
+  return format(code, {
+    parser(code, { babel }) {
+      return editAst(babel(code))
+    },
+    plugins: [babel],
+    printWidth: Number.MAX_SAFE_INTEGER
+  })
 }
 
 export default function unmangle(source: string) {
-  const parsed = parse(source, {
-    ecmaVersion: 12,
+  return parseAst(source, (ast) => {
+    traverse(ast, {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      Scope(path: NodePath<Node>) {
+        const kindCount: Record<string, number> = {}
+        function getName(origKind: string, line: number) {
+          const kind = {
+            hoisted: "fn",
+            local: "fn"
+          }[origKind] || origKind
+          const id = `${kind}${line}`
+          if (!kindCount[id]) {
+            kindCount[id] = 1
+            return id
+          }
+          kindCount[id] += 1
+          return `${id}_${kindCount[id]}`
+        }
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        forEach(path.scope.globals, (node) => {
+          let tag = " global "
+          if (
+            !Array.isArray(node.leadingComments) ||
+            !node.leadingComments.some((comment: Comment) => comment.value === tag)
+          ) {
+            util.addLeadingComment(node, {
+              type: "CommentBlock",
+              value: tag
+            })
+          }
+        })
+        forEach(path.scope.bindings, (node, name) => {
+          if (reservedWords.includes(name)) return
+          let line = node.identifier.loc?.start.line
+          path.scope.rename(name, getName(node.kind, line || 0))
+        })
+      }
+    })
+    return ast
   })
-
-  // console.log(JSON.stringify(parsed, null, 2))
-
-  walk.fullAncestor(parsed, (n, ancestors: acorn.Node[]) => {
-    const node = n as CustomNode
-    if (node.type !== 'Identifier') return
-    const scope = getScope(ancestors, 'FunctionDeclaration')
-    const newName = getNewName(node.name, getTreePath(scope))
-    node.name = newName
-  })
-
-  return generate(parsed)
 }
